@@ -43,6 +43,6 @@ export async function main(prompt: string) {
   }
 }
 
-const prompt = "create todo app ";
+const prompt = "create course selling app ";
 
 // main(prompt);
