@@ -9,7 +9,8 @@ export const chat = async (req: Request, res: Response) => {
     const message: MessageType = req.body.message;
 
     if (!message || !Array.isArray(message)) {
-      return res.status(400).json({ error: "Invalid message format try again " });
+      res.status(400).json({ error: "Invalid message format try again " });
+      return
     }
 
     const promptMessages = message.map(({ role, content }) => ({

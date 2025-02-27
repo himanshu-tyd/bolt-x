@@ -3,6 +3,7 @@ import { openai } from "./model";
 
 export async function getTemplateThink(prompt: string) {
 
+  console.log('fn called')
 
   const response = await openai.chat.completions.create({
     model: "deepseek/deepseek-chat:free",

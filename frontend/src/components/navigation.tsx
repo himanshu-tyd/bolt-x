@@ -13,13 +13,15 @@ export function Navigation() {
           <span className="font-bold">BoltX ppIDE</span>
         </Link>
         <nav className="flex items-center gap-4">
-          <Link to="#" className="text-sm text-muted-foreground hover:text-foreground transition-colors">
+          {/* <Link to="#" className="text-sm text-muted-foreground hover:text-foreground transition-colors">
             We&apos;re hiring!
-          </Link>
+          </Link> */}
           <Button variant="ghost" size="sm">
             Sign In
           </Button>
+          <Link to='/workspace' >
           <Button size="sm">Get Started</Button>
+          </Link>
         </nav>
       </div>
     </header>
