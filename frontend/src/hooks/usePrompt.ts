@@ -1,24 +1,30 @@
 import { api } from "@/lib/axiosInstance";
 
 import { useState } from "react";
+import { toast } from "sonner";
 
 export const useGetResponse = (url: string) => {
   const [error, setError] = useState<string>("");
   const [loading, setLoading] = useState<true | false>(false);
-  const [data, setData] = useState();
 
   const sendPrompt = async <T>(prompt: T) => {
     try {
-        setLoading(true)
+      setLoading(true);
       const res = await api.post(url, {
         prompt,
       });
 
       const context = res.data;
+      
 
-      setData(context);
+      if (!context) {
+        toast.error("opps something get wrong");
+        return;
+      }
 
-      return data;
+
+      return context
+
     } catch (error) {
       if (error instanceof Error) {
         setError(error.message);
@@ -28,5 +34,5 @@ export const useGetResponse = (url: string) => {
     }
   };
 
-  return { loading, error, sendPrompt};
+  return { loading, error, sendPrompt };
 };

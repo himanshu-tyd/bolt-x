@@ -1,38 +1,48 @@
-"use client"
+"use client";
 
-import React, { useState } from 'react'
-import { Loader2, Sparkles } from "lucide-react"
-import { cn } from "@/lib/utils"
-import { useGetResponse } from '@/hooks/usePrompt'
-import { s } from 'node_modules/framer-motion/dist/types.d-6pKw1mTI'
-import { toast } from 'sonner'
-
+import React, { useState } from "react";
+import { Loader2, Sparkles } from "lucide-react";
+import { cn } from "@/lib/utils";
+import { useGetResponse } from "@/hooks/usePrompt";
+import { s } from "node_modules/framer-motion/dist/types.d-6pKw1mTI";
+import { toast } from "sonner";
+import { useNavigate } from "react-router-dom";
+import Loader from "./Loader";
 
 interface CommandPaletteProps {
   // Define props here
 }
 
-export  const CommandPalette: React.FC<CommandPaletteProps> = ({ /* props */ }) => {
-  const [prompt, setPrompt] = useState<string>("")
-  const [isHovered, setIsHovered] = useState<boolean>(false)
-  const {error,loading,sendPrompt}=useGetResponse("/api/template")
+export const CommandPalette: React.FC<CommandPaletteProps> = (
+  {
+    /* props */
+  }
+) => {
+  const [prompt, setPrompt] = useState<string>("");
+  const [isHovered, setIsHovered] = useState<boolean>(false);
+  const { error, loading, sendPrompt } = useGetResponse("/api/template");
 
+  const navigate = useNavigate();
 
-  const handleBuild =async () => {
-
-    if(prompt==='') {
-      toast.error("please write your prompt")
+  const handleBuild = async () => {
+    if (prompt === "") {
+      toast.error("please write your prompt");
     }
 
     if (prompt.trim()) {
-      const res= await sendPrompt(prompt)
-      console.log(res)
+      const data = await sendPrompt(prompt);
+
+      if (error) {
+        toast.error("Error");
+      }
+
+      navigate("/workspace", { state: {data,prompt} });
     }
-  }
+  };
 
   const handleInputChange = (event: React.ChangeEvent<HTMLInputElement>) => {
-    setPrompt(event.target.value)
-  }
+    setPrompt(event.target.value);
+  };
 
   return (
     <div className="relative flex gap-4">
@@ -60,18 +70,17 @@ export  const CommandPalette: React.FC<CommandPaletteProps> = ({ /* props */ }) 
             "after:absolute after:inset-0 after:rounded-lg after:p-[1px]",
             "after:bg-gradient-to-r after:from-purple-600 after:via-fuchsia-500 after:to-pink-500",
             "after:animate-border-rotate after:bg-[length:200%_200%]",
-            isHovered ? "shadow-[0_0_20px_2px_rgba(168,85,247,0.4)]" : "",
+            isHovered ? "shadow-[0_0_20px_2px_rgba(168,85,247,0.4)]" : ""
           )}
         >
-          <span className="relative z-10">{loading ? <Loader2/> :  "Build"}</span>
+          <span className="relative z-10">
+            {loading ? <Loader/>: "Build"}
+          </span>
           <div className="absolute inset-0 -z-10 animate-pulse-slow opacity-0 group-hover:opacity-100 transition-opacity duration-300">
             <div className="absolute inset-0 bg-gradient-to-r from-purple-600/30 via-fuchsia-500/30 to-pink-500/30 blur-xl" />
           </div>
         </button>
       </div>
     </div>
-  )
-}
-
-
-
+  );
+};

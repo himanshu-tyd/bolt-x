@@ -1,5 +1,2 @@
 
 
-type steps={
-    
-}
