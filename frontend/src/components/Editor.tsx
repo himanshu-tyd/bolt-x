@@ -7,9 +7,6 @@ import { cn } from "@/lib/utils"
 import FileExplorer from "./FileExprorel"
 
 
-
-
-
 const steps = [
   {
     title: "Create initial files",
@@ -73,7 +70,7 @@ export default function PromptPage() {
 
 
 
-export default function EditorPage({) {
+export default function EditorPage() {
   const [selectedFile, setSelectedFile] = React.useState("src/components/EditorPage.tsx")
   const [code, setCode] = React.useState(fileContents[selectedFile] || "")
 

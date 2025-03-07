@@ -1,21 +1,36 @@
 import EditorPage from "@/components/Editor";
 import { api } from "@/lib/axiosInstance";
+import { parseXml } from "@/lib/Steps";
 
-import { useEffect } from "react";
-import { useLocation } from "react-router-dom";
+import { useEffect, useState } from "react";
+import { parsePath, useLocation } from "react-router-dom";
+import { toast } from "sonner";
 
-const CreatePage: React.FC = () => {
+const CreatePage = () => {
+  const [steps, setSteps] = useState<[]>([]);
   const { state: data } = useLocation();
 
   console.log("workspace page", data);
 
   async function init() {
-    api.post("/chat", {
-      message: [...data.prompt, data.prompt].map((c) => ({
+    const res = await api.post("/chat", {
+      message: [...data.prompts, data.prompt].map((c) => ({
         role: "user",
         content: c,
       })),
     });
+
+    const contex = res.data;
+
+    if (!contex) {
+      toast.error("something get wrong");
+
+      return;
+    }
+
+    console.log(contex);
+
+    // setSteps(parseXml(contex))
   }
 
   useEffect(() => {
