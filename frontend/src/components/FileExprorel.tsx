@@ -1,7 +1,7 @@
 
 import * as React from "react"
 import { ChevronRight, ChevronDown, FileCode, Folder, File } from "lucide-react"
-import { cn } from "@/lib/utils"
+import { cn, files } from "@/lib/utils"
 
 interface FileItem {
   name: string
@@ -10,62 +10,7 @@ interface FileItem {
   path: string
 }
 
-const initialFiles: FileItem[] = [
-  {
-    name: "src",
-    type: "folder",
-    path: "src",
-    children: [
-      {
-        name: "components",
-        type: "folder",
-        path: "src/components",
-        children: [
-          {
-            name: "EditorPage.tsx",
-            type: "file",
-            path: "src/components/EditorPage.tsx",
-          },
-          {
-            name: "PromptPage.tsx",
-            type: "file",
-            path: "src/components/PromptPage.tsx",
-          },
-        ],
-      },
-      {
-        name: "App.tsx",
-        type: "file",
-        path: "src/App.tsx",
-      },
-      {
-        name: "index.css",
-        type: "file",
-        path: "src/index.css",
-      },
-      {
-        name: "main.tsx",
-        type: "file",
-        path: "src/main.tsx",
-      },
-    ],
-  },
-  {
-    name: "package.json",
-    type: "file",
-    path: "package.json",
-  },
-  {
-    name: "tsconfig.json",
-    type: "file",
-    path: "tsconfig.json",
-  },
-  {
-    name: "vite.config.ts",
-    type: "file",
-    path: "vite.config.ts",
-  },
-]
+const initialFiles: FileItem[] =files
 
 interface FileTreeItemProps {
   item: FileItem

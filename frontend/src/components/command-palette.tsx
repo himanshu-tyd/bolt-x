@@ -14,9 +14,6 @@ interface CommandPaletteProps {
 }
 
 export const CommandPalette: React.FC<CommandPaletteProps> = (
-  {
-    /* props */
-  }
 ) => {
   const [prompt, setPrompt] = useState<string>("");
   const [isHovered, setIsHovered] = useState<boolean>(false);
@@ -36,7 +33,7 @@ export const CommandPalette: React.FC<CommandPaletteProps> = (
         toast.error("Error");
       }
 
-      navigate("/workspace", { state: {data,prompt} });
+      navigate("/workspace", { state: {data:data,userPrompt:prompt} });
     }
   };
 

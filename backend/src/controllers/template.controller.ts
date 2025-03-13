@@ -47,6 +47,7 @@ export const getTemplate = async (req: Request, res: Response) => {
           success: true,
           message: "template get it",
           prompts: [nodeBase],
+          uiPrompt: [nodeBase]
         });
         break;
       default:
