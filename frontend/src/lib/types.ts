@@ -3,33 +3,37 @@ export enum StepType {
     CreateFolder,
     EditFile,
     DeleteFile,
-    RunScript
+    RunScript,
+    File = "file",
+    Shell = "shell"
   }
   
-  export interface Step {
-    id: number;
+  export type Step= {
+    id?: number;
     title: string;
     description: string;
     type: StepType;
-    status: 'pending' | 'in-progress' | 'completed';
+    status: 'pending' | 'in-progress' | 'completed' | "active";
     code?: string;
     path?: string;
+    command?:string
   }
   
-  export interface Project {
+  export type Project ={
     prompt: string;
     steps: Step[];
   }
   
-  export interface FileItem {
+  export type FileItem ={
     name: string;
     type: 'file' | 'folder';
     children?: FileItem[];
     content?: string;
     path: string;
+    code?:string
   }
   
-  export interface FileViewerProps {
+  export type FileViewerProps ={
     file: FileItem | null;
     onClose: () => void;
   }

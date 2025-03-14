@@ -31,7 +31,8 @@ export const CommandPalette: React.FC<CommandPaletteProps> = (
 
       if (error) {
         toast.error("Error");
-      }
+        return
+      } 
 
       navigate("/workspace", { state: {data:data,userPrompt:prompt} });
     }

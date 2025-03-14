@@ -1,16 +1,17 @@
-
 import * as React from "react"
 import { ChevronRight, ChevronDown, FileCode, Folder, File } from "lucide-react"
 import { cn, files } from "@/lib/utils"
+import { Step, StepType } from "@/lib/types"
 
 interface FileItem {
   name: string
   type: "file" | "folder"
   children?: FileItem[]
   path: string
+  content?: string
 }
 
-const initialFiles: FileItem[] =files
+// const initialFiles: FileItem[] = files
 
 interface FileTreeItemProps {
   item: FileItem
@@ -83,21 +84,129 @@ function FileTreeItem({ item, level = 0, onFileSelect, selectedFile }: FileTreeI
 
 interface FileExplorerProps {
   onFileSelect: (path: string) => void
-  selectedFile: string
+  selectedFile: string,
+  steps: {
+    title: string;
+    status: "completed" | "pending" | "in-progress" | "active";
+    command?: string;
+    type: StepType
+    path?: string
+    code?: string
+  }[],
+  setSteps: React.Dispatch<React.SetStateAction<Step[]>>,
+  fileContents: Record<string, string>,
+  setFileContents: React.Dispatch<React.SetStateAction<Record<string, string>>>
 }
 
-export default function FileExplorer({ onFileSelect, selectedFile }: FileExplorerProps) {
+export default function FileExplorer({
+  steps, 
+  setSteps, 
+  onFileSelect, 
+  selectedFile,
+  fileContents,
+  setFileContents
+}: FileExplorerProps) {
+  const [fileItems, setFiles] = React.useState<FileItem[]>([]);
+
+  // Create and organize files based on steps
+  React.useEffect(() => {
+    // Check if we've already processed this set of steps
+    const pendingSteps = steps.filter(x => x.status === 'pending');
+    if (pendingSteps.length === 0) return;
+    
+    console.log("Processing pending steps:", pendingSteps);
+    const newFiles = [...fileItems];
+    
+    pendingSteps.forEach(step => {
+      // Only process file steps with a path
+      if (step.type === StepType.File && step.path && step.path !== "/") {
+        // Add file to fileContents if it has code
+        if (step.code) {
+          setFileContents(prev => ({
+            ...prev,
+            [step.path as string]: step.code || ''
+          }));
+        }
+        
+        // Split path to get folders and filename
+        const pathParts = step.path.split('/').filter(Boolean);
+        const fileName = pathParts.pop() || '';
+        
+        // Skip if fileName is empty
+        if (!fileName) return;
+        
+        let currentPath = '';
+        let currentLevel = newFiles;
+        
+        // Create folder structure
+        for (const folder of pathParts) {
+          currentPath += '/' + folder;
+          
+          let folderItem = currentLevel.find(item => 
+            item.type === 'folder' && item.path === currentPath
+          );
+          
+          if (!folderItem) {
+            folderItem = {
+              name: folder,
+              type: 'folder',
+              path: currentPath,
+              children: []
+            };
+            currentLevel.push(folderItem);
+          }
+          
+          currentLevel = folderItem.children || [];
+        }
+        
+        // Add file to deepest folder
+        const filePath = currentPath + '/' + fileName;
+        const existingFile = currentLevel.find(item => 
+          item.type === 'file' && item.path === filePath
+        );
+        
+        if (existingFile) {
+          existingFile.content = step.code;
+        } else {
+          currentLevel.push({
+            name: fileName,
+            type: 'file',
+            path: filePath,
+            content: step.code
+          });
+        }
+      }
+    });
+    
+    setFiles(newFiles);
+    
+    // Mark steps as completed
+    setSteps(prevSteps => prevSteps.map(s => {
+      if (s.status === 'pending') {
+        return {
+          ...s,
+          status: 'completed'
+        };
+      }
+      return s;
+    }));
+  }, [steps, fileItems, setFileContents, setSteps]);
+
   return (
-    <div className="w-60 border-r bg-muted/50">
+    <div className="w-60 border-r bg-muted/50 flex flex-col h-full">
       <div className="flex h-10 items-center border-b px-4">
         <span className="text-sm font-medium">Files</span>
       </div>
-      <div className="p-2">
-        {initialFiles.map((file) => (
-          <FileTreeItem key={file.path} item={file} onFileSelect={onFileSelect} selectedFile={selectedFile} />
+      <div className="p-2 overflow-y-auto flex-1">
+        {fileItems.map((file) => (
+          <FileTreeItem 
+            key={file.path} 
+            item={file} 
+            onFileSelect={onFileSelect} 
+            selectedFile={selectedFile} 
+          />
         ))}
       </div>
     </div>
   )
 }
-

@@ -10,7 +10,7 @@ export const chat = async (req: Request, res: Response) => {
 
     if (!message || !Array.isArray(message)) {
       res.status(400).json({ error: "Invalid message format try again " });
-      return
+      return;
     }
 
     const promptMessages = message.map(({ role, content }) => ({
@@ -18,10 +18,8 @@ export const chat = async (req: Request, res: Response) => {
       content,
     }));
 
-    // console.log(promptMessages)
-
     const stream = await openai.chat.completions.create({
-      model: "deepseek/deepseek-chat:free",
+      model: "deepseek/deepseek-chat:free", 
       temperature: 0,
       stream: true,
       messages: [
@@ -31,12 +29,15 @@ export const chat = async (req: Request, res: Response) => {
     });
 
     console.log("Process start");
+    let fullResponse = '';
     for await (const chunk of stream) {
-      process.stdout.write(chunk.choices[0].delta?.content || "");
+      const content = chunk.choices[0].delta?.content || "";
+      process.stdout.write(content);
+      fullResponse += content;
     }
     console.log("Process end");
 
-    res.json({ success: true });
+    res.json({ success: true, llmResponse: fullResponse });
     
   } catch (e) {
     catchError(e, res);

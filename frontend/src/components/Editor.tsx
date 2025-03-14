@@ -1,73 +1,14 @@
-"use client";
-
 import * as React from "react";
 import Editor from "@monaco-editor/react";
-import { Bolt, ChevronRight, Terminal, Play, Settings } from "lucide-react";
+import { Bolt, ChevronRight, Terminal, Play, Settings, Loader2 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import FileExplorer from "./FileExprorel";
 import { api } from "@/lib/axiosInstance";
 import { toast } from "sonner";
 import { parseXml } from "@/lib/Steps";
-
-const steps = [
-  {
-    title: "Create initial files",
-    status: "completed",
-  },
-  {
-    title: "Install dependencies",
-    status: "completed",
-    command: "npm install",
-  },
-  {
-    title: "Update src/App.tsx",
-    status: "completed",
-  },
-  {
-    title: "Create src/components/PromptPage.tsx",
-    status: "completed",
-  },
-  {
-    title: "Create src/components/EditorPage.tsx",
-    status: "active",
-  },
-  {
-    title: "Update src/index.css",
-    status: "pending",
-  },
-];
-
-const fileContents: Record<string, string> = {
-  "src/App.tsx": `import React from 'react';
-import { Button } from './components/ui/button';
-
-export default function App() {
-  return (
-    <div className="min-h-screen bg-background">
-      <h1>App Page</h1>
-    </div>
-  );
-}`,
-  "src/components/EditorPage.tsx": `import React, { useState, useEffect } from 'react';
-import { Button } from '../ui/button';
-
-export default function EditorPage() {
-  return (
-    <div className="min-h-screen bg-background">
-      <h1>Editor Page</h1>
-    </div>
-  );
-}`,
-  "src/components/PromptPage.tsx": `import React from 'react';
-
-export default function PromptPage() {
-  return (
-    <div className="min-h-screen bg-background">
-      <h1>Prompt Page</h1>
-    </div>
-  );
-}`,
-};
+import { Step, StepType } from "@/lib/types";
+import { useWebContainer } from "@/contexts/WebContainerContext";
+import { useRef } from "react";
 
 interface EditorPageProps {
   prompts: {
@@ -81,21 +22,63 @@ interface EditorPageProps {
 
 export default function EditorPage({ prompts }: EditorPageProps) {
   const [selectedFile, setSelectedFile] = React.useState("/src/components/Button.tsx");
-  const [code, setCode] = React.useState(fileContents[selectedFile] || "// File not found");
-  const [steps, setSteps]=React.useState<{title:string, status:"completed" | "pending" | "in-progress" | "active", command?:string} [] > ([])
+  const [steps, setSteps] = React.useState<Step[]>([]);
+  const [view, setView] = React.useState<'code' | 'preview'>('code');
+  const {
+    webContainer, 
+    isLoading, 
+    mountFiles, 
+    runCommand, 
+    terminal, 
+    setTerminalEl,
+    fileContents,
+    setFileContents
+  } = useWebContainer();
 
   const handleFileSelect = (path: string) => {
     setSelectedFile(path);
-    setCode(fileContents[path] || "// File not found");
   };
-
- 
-
-  const { data, userPrompt } = prompts;
-
 
   async function init() {
     try {
+      const { data, userPrompt } = prompts!;
+      
+      if (data?.uiPrompt && data.uiPrompt.length > 0) {
+        try {
+          const initialSteps = parseXml(data.uiPrompt[0]);
+          
+          if (initialSteps.length > 0) {
+            setSteps(initialSteps.map((x: Step) => ({
+              ...x,
+              status: "pending"
+            })));
+            
+            const newFileContents: Record<string, string> = {};
+            initialSteps.forEach((step) => {
+              if (step.type === StepType.File && step.path && step.code) {
+                newFileContents[step.path] = step.code;
+              }
+            });
+            
+            setFileContents(prev => ({
+              ...prev,
+              ...newFileContents
+            }));
+            
+            if (Object.keys(newFileContents).length > 0) {
+              const firstFilePath = Object.keys(newFileContents)[0];
+              setSelectedFile(firstFilePath);
+              
+              if (webContainer) {
+                mountFiles(newFileContents).catch(console.error);
+              }
+            }
+          }
+        } catch (error) {
+          console.error("Error parsing UI prompt:", error);
+        }
+      }
+      
       const res = await api.post("api/chat", {
         message: [...data.prompts, userPrompt].map((c) => ({
           role: "user",
@@ -108,7 +91,85 @@ export default function EditorPage({ prompts }: EditorPageProps) {
         return;
       }
 
-      console.log("API Response:", res.data);
+      if (res.data?.llmResponse) {
+        try {
+          console.log("LLM Response:", res.data.llmResponse);
+          
+          const llmSteps = parseXml(res.data.llmResponse);
+          console.log("Parsed steps:", llmSteps.length);
+          
+          if (llmSteps.length > 0) {
+            console.log("Parsed steps:", llmSteps.length);
+            
+            llmSteps.forEach(step => {
+              console.log(`Step ${step.id}: ${step.title}, type: ${step.type}, path: ${step.path || 'N/A'}`);
+              if (step.code) console.log(`Content length: ${step.code.length} bytes`);
+            });
+            
+            const additionalFileContents: Record<string, string> = {};
+            
+            llmSteps.forEach((step) => {
+              if (step.type === StepType.File && step.path && step.path !== "/") {
+                console.log(`Processing file: ${step.path}`);
+                console.log(`Content preview: ${step.code?.substring(0, 50)}...`);
+                additionalFileContents[step.path] = step.code || '';
+              }
+            });
+            
+            if (Object.keys(additionalFileContents).length > 0) {
+              console.log(`Adding ${Object.keys(additionalFileContents).length} files to contents`);
+              setFileContents(prev => {
+                const updated = {
+                  ...prev,
+                  ...additionalFileContents
+                };
+                console.log("Updated file contents:", Object.keys(updated));
+                return updated;
+              });
+              
+              const firstFilePath = Object.keys(additionalFileContents)[0];
+              setSelectedFile(firstFilePath);
+            }
+            
+            setSteps(prevSteps => {
+              const newStepsToAdd: Step[] = [];
+              const pathsMap = new Map<string, boolean>();
+              
+              prevSteps.forEach(step => {
+                if (step.path) {
+                  pathsMap.set(step.path, true);
+                }
+              });
+              
+              llmSteps.forEach(llmStep => {
+                if (llmStep.path && pathsMap.has(llmStep.path)) {
+                  console.log(`Skipping duplicate step: ${llmStep.path}`);
+                  prevSteps = prevSteps.map(s => {
+                    if (s.path === llmStep.path) {
+                      return {
+                        ...s, 
+                        code: llmStep.code,
+                        title: s.title + " (Updated)",
+                        status: "pending"
+                      };
+                    }
+                    return s;
+                  });
+                } else {
+                  newStepsToAdd.push({
+                    ...llmStep,
+                    status: "pending" as const
+                  });
+                }
+              });
+              
+              return [...prevSteps, ...newStepsToAdd];
+            });
+          }
+        } catch (error) {
+          console.error("Error parsing LLM response:", error);
+        }
+      }
     } catch (error) {
       toast.error("API request failed");
       console.error(error);
@@ -117,37 +178,86 @@ export default function EditorPage({ prompts }: EditorPageProps) {
 
   React.useEffect(() => {
     init();
-  }, [prompt]);
+  }, []);
 
+  const TerminalOutput = React.forwardRef<HTMLDivElement>((props, ref) => {
+    return (
+      <div className="bg-black text-green-500 font-mono text-sm p-4 rounded-md h-60 overflow-y-auto" ref={ref}>
+        <div className="flex items-center gap-2 mb-2 text-white">
+          <Terminal className="h-5 w-5" />
+          <span>Terminal</span>
+        </div>
+        {props.children}
+      </div>
+    );
+  });
+  TerminalOutput.displayName = "TerminalOutput";
+
+  const terminalRef = useRef<HTMLDivElement>(null);
+  const [terminalVisible, setTerminalVisible] = React.useState(false);
+  const [terminalContent, setTerminalContent] = React.useState<string>("");
 
   React.useEffect(() => {
-    const parsedData = parseXml(`
-     <boltArtifact id=\"project-import\" title=\"Project Files\"><boltAction type=\"file\" filePath=\"eslint.config.js\">import js from '@eslint/js'; import globals from 'globals'; import reactHooks from 'eslint-plugin-react-hooks'; import reactRefresh from 'eslint-plugin-react-refresh'; import tseslint from 'typescript-eslint'; export default tseslint.config( { ignores: ['.next'] }, { extends: [js.configs.recommended, ...tseslint.configs.recommended], files: ['**/*.{ts,tsx}'], languageOptions: { ecmaVersion: 2020, globals: globals.browser, }, plugins: { 'react-hooks': reactHooks, 'react-refresh': reactRefresh, }, rules: { ...reactHooks.configs.recommended.rules, 'react-refresh/only-export-components': [ 'warn', { allowConstantExport: true }, ], }, } ); </boltAction><boltAction type=\"file\" filePath=\"package.json\">{ \"name\": \"nextjs-typescript-starter\", \"private\": true, \"version\": \"0.0.0\", \"type\": \"module\", \"scripts\": { \"dev\": \"next dev\", \"build\": \"next build\", \"start\": \"next start\", \"lint\": \"eslint .\" }, \"dependencies\": { \"lucide-react\": \"^0.344.0\", \"next\": \"^14.0.0\", \"react\": \"^18.3.1\", \"react-dom\": \"^18.3.1\" }, \"devDependencies\": { \"@eslint/js\": \"^9.9.1\", \"@types/react\": \"^18.3.5\", \"@types/react-dom\": \"^18.3.0\", \"autoprefixer\": \"^10.4.18\", \"eslint\": \"^9.9.1\", \"eslint-plugin-react-hooks\": \"^5.1.0-rc.0\", \"eslint-plugin-react-refresh\": \"^0.4.11\", \"globals\": \"^15.9.0\", \"postcss\": \"^8.4.35\", \"tailwindcss\": \"^3.4.1\", \"typescript\": \"^5.5.3\" } } </boltAction><boltAction type=\"file\" filePath=\"postcss.config.js\">export default { plugins: { tailwindcss: {}, autoprefixer: {}, }, }; </boltAction><boltAction type=\"file\" filePath=\"tailwind.config.js\">/** @type {import('tailwindcss').Config} */ export default { content: ['./pages/**/*.{js,ts,jsx,tsx}', './components/**/*.{js,ts,jsx,tsx}'], theme: { extend: {}, }, plugins: [], }; </boltAction><boltAction type=\"file\" filePath=\"tsconfig.json\">{ \"compilerOptions\": { \"target\": \"ES2020\", \"useDefineForClassFields\": true, \"lib\": [\"ES2020\", \"DOM\", \"DOM.Iterable\"], \"module\": \"ESNext\", \"skipLibCheck\": true, \"moduleResolution\": \"node\", \"allowJs\": true, \"strict\": true, \"noUnusedLocals\": true, \"noUnusedParameters\": true, \"noFallthroughCasesInSwitch\": true, \"jsx\": \"preserve\" }, \"include\": [\"next-env.d.ts\", \"**/*.ts\", \"**/*.tsx\"], \"exclude\": [\"node_modules\"] } </boltAction><boltAction type=\"file\" filePath=\"next-env.d.ts\">/// <reference types=\"next\" /> /// <reference types=\"next/image-types/global\" /> /// <reference types=\"next/navigation-types/compat\" /> // NOTE: This file should not be edited </boltAction><boltAction type=\"file\" filePath=\"pages/_app.tsx\">import type { AppProps } from 'next/app'; import '../styles/globals.css'; export default function App({ Component, pageProps }: AppProps) { return <Component {...pageProps} />; } </boltAction><boltAction type=\"file\" filePath=\"pages/index.tsx\">export default function Home() { return ( <div className=\"min-h-screen bg-gray-100 flex items-center justify-center\"> <p>Welcome to Next.js + TypeScript!</p> </div> ); } </boltAction><boltAction type=\"file\" filePath=\"styles/globals.css\">@tailwind base; @tailwind components; @tailwind utilities; </boltAction></boltArtifact><boltAction type="shell">
-    npm install && npm run dev
-  </boltAction>`
-    );
-
-    console.log(parsedData);
-
-    setSteps(parsedData.map((x) => {
-      const stepsData = {
-        title: x.title,
-        status: x.status,
-        
-      };
+    if (terminalRef.current) {
+      setTerminalEl(terminalRef.current);
       
-      if (x.title.toLowerCase() === 'run command') {
-        //@ts-ignore
-        stepsData.command = x.code;
+      terminalRef.current.innerHTML = "💻 Terminal initialized. Ready for commands.\n";
+      
+      if (isLoading) {
+        terminalRef.current.innerHTML += "⏳ Loading WebContainer environment...\n";
       }
+    }
+  }, [terminalRef, setTerminalEl, isLoading]);
 
-      return stepsData;
-    }));    
-  }, []);
+  React.useEffect(() => {
+    if (terminalRef.current) {
+      if (webContainer) {
+        terminalRef.current.innerHTML += "✅ WebContainer ready\n";
+      }
+    }
+  }, [webContainer]);
+
+  const runProject = async () => {
+    if (!webContainer) {
+      toast.error("WebContainer not initialized");
+      return;
+    }
+    
+    setTerminalVisible(true);
+    
+    if (terminalRef.current) {
+      terminalRef.current.innerHTML += "🚀 Running project...\n";
+    }
+    
+    try {
+      if (terminalRef.current) {
+        terminalRef.current.innerHTML += "📦 Installing dependencies...\n";
+      }
+      toast.info("Installing dependencies...");
+      await runCommand("npm", ["install"]);
+      
+      if (terminalRef.current) {
+        terminalRef.current.innerHTML += "🌐 Starting development server...\n";
+      }
+      toast.success("Starting development server...");
+      const output = await runCommand("npm", ["run", "dev"]);
+      console.log("Server output:", output);
+      
+      if (view !== 'preview') {
+        setView('preview');
+        toast.info("Switched to preview mode");
+      }
+    } catch (error) {
+      if (terminalRef.current) {
+        terminalRef.current.innerHTML += `❌ Error: ${error}\n`;
+      }
+      toast.error("Failed to run project");
+      console.error(error);
+    }
+  };
 
   return (
     <div className="flex h-screen flex-col">
-      {/* Top Navigation */}
       <header className="flex h-14 items-center justify-between border-b bg-background px-4">
         <div className="flex items-center gap-2">
           <Bolt className="h-6 w-6" />
@@ -165,16 +275,15 @@ export default function EditorPage({ prompts }: EditorPageProps) {
         </div>
       </header>
 
-      <div className="flex flex-1 overflow-hidden">
-        {/* Steps Panel */}
+      <div className="flex flex-1">
         <div className="w-80 border-r bg-muted/50">
           <div className="flex h-10 items-center border-b px-4">
             <span className="text-sm font-medium">Steps</span>
           </div>
-          <div className="p-4">
+          <div className="p-4 overflow-y-auto flex flex-1 flex-col h-[90%] ">
             {steps.map((step, index) => (
               <div
-                key={step.title}
+                key={index}
                 className={cn(
                   "mb-2 rounded-lg p-3 transition-colors",
                   step.status === "active" && "bg-accent",
@@ -196,7 +305,7 @@ export default function EditorPage({ prompts }: EditorPageProps) {
                   </div>
                   <span className="text-sm font-medium">{step.title}</span>
                 </div>
-                {step?.command && (
+                {step?.type==="shell" && (
                   <div className="mt-2 rounded-md bg-background p-2 font-mono text-xs">
                     {step.command}
                   </div>
@@ -206,15 +315,16 @@ export default function EditorPage({ prompts }: EditorPageProps) {
           </div>
         </div>
 
-        {/* File Explorer */}
         <FileExplorer
+          steps={steps}
+          setSteps={setSteps}
           onFileSelect={handleFileSelect}
           selectedFile={selectedFile}
+          fileContents={fileContents}
+          setFileContents={setFileContents}
         />
-        {/* Editor Panel */}
         <div className="flex flex-1 flex-col">
           <div className="flex h-10 items-center gap-4 border-b px-4">
-            {/* File path breadcrumb */}
             <div className="flex items-center gap-1 text-sm text-muted-foreground">
               {selectedFile.split("/").map((part, i, arr) => (
                 <React.Fragment key={i}>
@@ -230,13 +340,16 @@ export default function EditorPage({ prompts }: EditorPageProps) {
               ))}
             </div>
 
-            {/* Existing toolbar buttons */}
             <div className="ml-auto flex items-center gap-2">
-              <button className="inline-flex items-center gap-1 rounded-md px-2 py-1 text-sm font-medium text-primary transition-colors hover:bg-accent">
+              <button 
+                className="inline-flex items-center gap-1 rounded-md px-2 py-1 text-sm font-medium text-primary transition-colors hover:bg-accent"
+                onClick={() => setTerminalVisible(!terminalVisible)}
+              >
                 <Terminal className="h-4 w-4" />
                 Terminal
+                {isLoading && <Loader2 className="h-3 w-3 ml-1 animate-spin" />}
               </button>
-              <button className="inline-flex items-center gap-1 rounded-md px-2 py-1 text-sm font-medium text-primary transition-colors hover:bg-accent">
+              <button className="inline-flex items-center gap-1 rounded-md px-2 py-1 text-sm font-medium text-primary transition-colors hover:bg-accent" onClick={runProject}>
                 <Play className="h-4 w-4" />
                 Run
               </button>
@@ -247,26 +360,104 @@ export default function EditorPage({ prompts }: EditorPageProps) {
             </div>
           </div>
           <div className="relative flex-1">
-            <Editor
-              defaultLanguage="typescript"
-              value={code}
-              theme="vs-dark"
-              onChange={(value) => setCode(value || "")}
-              path={selectedFile}
-              options={{
-                minimap: { enabled: false },
-                fontSize: 14,
-                lineNumbers: "on",
-                roundedSelection: false,
-                scrollBeyondLastLine: false,
-                readOnly: false,
-                automaticLayout: true,
-              }}
-              className="h-full w-full"
-            />
+            <div className="h-full w-full">
+              <div className="flex border-b">
+                <button 
+                  className={cn(
+                    "px-4 py-2 text-sm font-medium",
+                    view === 'code' ? "border-b-2 border-primary" : "text-muted-foreground"
+                  )}
+                  onClick={() => setView('code')}
+                >
+                  Code
+                </button>
+                <button
+                  className={cn(
+                    "px-4 py-2 text-sm font-medium", 
+                    view === 'preview' ? "border-b-2 border-primary" : "text-muted-foreground"
+                  )}
+                  onClick={() => setView('preview')}
+                >
+                  Preview
+                </button>
+              </div>
+
+              <div className="h-[calc(100%-40px)]">
+                {view === 'code' ? (
+                  <Editor
+                    key={selectedFile}
+                    defaultLanguage={selectedFile.endsWith(".tsx") || selectedFile.endsWith(".ts") ? "typescript" : 
+                                     selectedFile.endsWith(".js") ? "javascript" : 
+                                     selectedFile.endsWith(".css") ? "css" : 
+                                     selectedFile.endsWith(".json") ? "json" : "plaintext"}
+                    value={fileContents[selectedFile] || "// File not found"}
+                    theme="vs-dark"
+                    onChange={(value) => {
+                      if (selectedFile) {
+                        setFileContents(prev => ({
+                          ...prev,
+                          [selectedFile]: value || ""
+                        }));
+                      }
+                    }}
+                    path={selectedFile}
+                    options={{
+                      minimap: { enabled: true },
+                      fontSize: 14,
+                      lineNumbers: "on", 
+                      roundedSelection: false,
+                      scrollBeyondLastLine: false,
+                      readOnly: false,
+                      automaticLayout: true,
+                    }}
+                    className="h-full w-full"
+                  />
+                ) : (
+                  <iframe
+                    srcDoc={`
+                      <!DOCTYPE html>
+                      <html>
+                        <head>
+                          <style>
+                            body { margin: 0; }
+                          </style>
+                        </head>
+                        <body>
+                          ${fileContents[selectedFile] || ""}
+                        </body>
+                      </html>
+                    `}
+                    className="h-full w-full border-none"
+                    sandbox="allow-scripts"
+                  />
+                )}
+              </div>
+            </div>
           </div>
         </div>
       </div>
+
+      {terminalVisible && (
+        <div className="border-t p-4 h-60 bg-gray-900">
+          <div className="flex justify-between mb-2">
+            <h3 className="text-sm font-medium text-white">Terminal</h3>
+            <button 
+              onClick={() => setTerminalVisible(false)}
+              className="text-gray-400 hover:text-white"
+            >
+              Close
+            </button>
+          </div>
+          <TerminalOutput ref={terminalRef}>
+            {isLoading && (
+              <div className="flex items-center gap-2 text-yellow-400">
+                <Loader2 className="h-4 w-4 animate-spin" />
+                <span>WebContainer is initializing...</span>
+              </div>
+            )}
+          </TerminalOutput>
+        </div>
+      )}
     </div>
   );
 }

@@ -56,6 +56,23 @@
   body {
     @apply bg-background text-foreground;
   }
+
+  /* Scrollbar Styles */
+  ::-webkit-scrollbar {
+    width: 10px;
+  }
+
+  ::-webkit-scrollbar-track {
+    @apply bg-muted;
+  }
+
+  ::-webkit-scrollbar-thumb {
+    @apply bg-accent rounded-full;
+  }
+
+  ::-webkit-scrollbar-thumb:hover {
+    @apply bg-accent/80;
+  }
 }
 
 @layer utilities {
@@ -205,4 +222,3 @@
     @apply bg-background text-foreground;
   }
 }
-
